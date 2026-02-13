@@ -1,31 +1,46 @@
 ﻿#include <windows.h>
 #include <sddl.h>
 #include <aclapi.h>
-#include <iostream>
-#include <string>
 
 // 函数声明
 BOOL SetObjectIntegrityLevel(
     LPCWSTR objectPath,
     SE_OBJECT_TYPE objectType,
     LPCWSTR integrityLevel,
-    BOOL bEnable,                     // 是否启用完整性级别
-    byte inheritance  // 继承属性
+    BOOL bEnable, // 是否启用完整性级别
+    BYTE inheritance // 继承属性
 );
-BOOL EnablePrivilege(LPCWSTR privilegeName);
-void PrintUsage();
-BOOL ConvertSidToString(PSID pSid, std::wstring& strSid);
 
-int wmain(int argc, wchar_t* argv[]) {
-    // 解析命令行参数，现在需要至少5个参数（包括继承属性）
-    if (argc < 5) {
-        PrintUsage();
+BOOL EnablePrivilege(LPCWSTR privilegeName);
+VOID PrintUsage(HANDLE hConsole);
+BOOL ConvertSidToString(PSID pSid, LPWSTR* strSid);
+
+int Main() {
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hConsole == INVALID_HANDLE_VALUE) {
         return 1;
     }
 
-    std::wstring objectTypeStr = argv[1];
-    std::wstring objectPath = argv[2];
-    std::wstring integrityLevel = argv[3];
+    LPWSTR* argv;
+    INT argc;
+
+    // 获取命令行参数
+    argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (argv == NULL) {
+        WriteConsoleW(hConsole, L"Failed to parse command line\n", 28, NULL, NULL);
+        return 1;
+    }
+
+    // 解析命令行参数，现在需要至少5个参数（包括继承属性）
+    if (argc < 5) {
+        PrintUsage(hConsole);
+        LocalFree(argv);
+        return 1;
+    }
+
+    LPCWSTR objectTypeStr = argv[1];
+    LPCWSTR objectPath = argv[2];
+    LPCWSTR integrityLevel = argv[3];
 
     BOOL bEnable = FALSE; // 默认禁用
     if (wcscmp(argv[4], L"enable") == 0) {
@@ -35,94 +50,84 @@ int wmain(int argc, wchar_t* argv[]) {
         bEnable = FALSE;
     }
     else {
-        std::wcerr << L"Invalid enable/disable option. Use 'enable' or 'disable'" << std::endl;
-        PrintUsage();
+        WriteConsoleW(hConsole, L"Invalid enable/disable option. Use 'enable' or 'disable'\n", 58, NULL, NULL);
+        PrintUsage(hConsole);
+        LocalFree(argv);
         return 1;
     }
 
     // 解析继承属性（第5个参数）
-    byte inheritance = NO_INHERITANCE;
+    BYTE inheritance = NO_INHERITANCE;
     if (argc > 5) {
-        std::wstring inheritStr = argv[5];
-        if (inheritStr == L"container") {
+        LPCWSTR inheritStr = argv[5];
+        if (wcscmp(inheritStr, L"container") == 0) {
             inheritance = CONTAINER_INHERIT_ACE;
         }
-        else if (inheritStr == L"object") {
+        else if (wcscmp(inheritStr, L"object") == 0) {
             inheritance = OBJECT_INHERIT_ACE;
         }
-        else if (inheritStr == L"both") {
+        else if (wcscmp(inheritStr, L"both") == 0) {
             inheritance = (CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE);
         }
-        else if (inheritStr == L"none") {
+        else if (wcscmp(inheritStr, L"none") == 0) {
             inheritance = NO_INHERITANCE;
         }
         else {
-            std::wcerr << L"Invalid inheritance option. Use: none, container, object, or both" << std::endl;
-            PrintUsage();
+            WriteConsoleW(hConsole, L"Invalid inheritance option. Use: none, container, object, or both\n", 68, NULL, NULL);
+            PrintUsage(hConsole);
+            LocalFree(argv);
             return 1;
         }
     }
 
     // 解析对象类型
     SE_OBJECT_TYPE objectType;
-    if (objectTypeStr == L"file" || objectTypeStr == L"FILE") {
+    if (wcscmp(objectTypeStr, L"file") == 0 || wcscmp(objectTypeStr, L"FILE") == 0) {
         objectType = SE_FILE_OBJECT;
     }
-    else if (objectTypeStr == L"registry" || objectTypeStr == L"REGISTRY" ||
-        objectTypeStr == L"reg" || objectTypeStr == L"REG") {
+    else if (wcscmp(objectTypeStr, L"registry") == 0 || wcscmp(objectTypeStr, L"REGISTRY") == 0 ||
+        wcscmp(objectTypeStr, L"reg") == 0 || wcscmp(objectTypeStr, L"REG") == 0) {
         objectType = SE_REGISTRY_KEY;
     }
-    else if (objectTypeStr == L"service" || objectTypeStr == L"SERVICE") {
+    else if (wcscmp(objectTypeStr, L"service") == 0 || wcscmp(objectTypeStr, L"SERVICE") == 0) {
         objectType = SE_SERVICE;
     }
-    else if (objectTypeStr == L"printer" || objectTypeStr == L"PRINTER") {
+    else if (wcscmp(objectTypeStr, L"printer") == 0 || wcscmp(objectTypeStr, L"PRINTER") == 0) {
         objectType = SE_PRINTER;
     }
-    else if (objectTypeStr == L"kernel" || objectTypeStr == L"KERNEL") {
+    else if (wcscmp(objectTypeStr, L"kernel") == 0 || wcscmp(objectTypeStr, L"KERNEL") == 0) {
         objectType = SE_KERNEL_OBJECT;
     }
-    else if (objectTypeStr == L"window" || objectTypeStr == L"WINDOW") {
+    else if (wcscmp(objectTypeStr, L"window") == 0 || wcscmp(objectTypeStr, L"WINDOW") == 0) {
         objectType = SE_WINDOW_OBJECT;
     }
-    else if (objectTypeStr == L"ds" || objectTypeStr == L"DS" ||
-        objectTypeStr == L"directory" || objectTypeStr == L"DIRECTORY") {
+    else if (wcscmp(objectTypeStr, L"ds") == 0 || wcscmp(objectTypeStr, L"DS") == 0 ||
+        wcscmp(objectTypeStr, L"directory") == 0 || wcscmp(objectTypeStr, L"DIRECTORY") == 0) {
         objectType = SE_DS_OBJECT;
     }
     else {
-        std::wcerr << L"Unknown object type: " << objectTypeStr << std::endl;
-        PrintUsage();
+        WriteConsoleW(hConsole, L"Unknown object type\n", 20, NULL, NULL);
+        PrintUsage(hConsole);
+        LocalFree(argv);
         return 1;
     }
 
     // 执行设置命令
-    std::wcout << L"Setting integrity level for: " << objectPath << std::endl;
-    std::wcout << L"Object type: " << objectTypeStr << std::endl;
-    std::wcout << L"Integrity level: " << integrityLevel << std::endl;
-    std::wcout << L"Enable: " << (bEnable ? L"true" : L"false") << std::endl;
-
-    // 这里需要实现一个支持继承和启用的SetObjectIntegrityLevelEx函数
-    // 由于原SetObjectIntegrityLevel不支持这些功能，我们需要假设有一个新版本
-    // 以下是伪代码/调用示例：
-    /*
-    BOOL result = SetObjectIntegrityLevelEx(
-        objectPath.c_str(),
-        objectType,
-        integrityLevel.c_str(),
-        bEnable,
-        inheritance
-    );
-    */
+    WCHAR buffer[1024];
+    int len = wsprintfW(buffer, L"Setting integrity level for: %s\nObject type: %s\nIntegrity level: %s\nEnable: %s\n",
+        objectPath, objectTypeStr, integrityLevel, bEnable ? L"true" : L"false");
+    WriteConsoleW(hConsole, buffer, len, NULL, NULL);
 
     // 临时使用原函数并输出提示
-    std::wcout << L"[NOTE: Actual implementation should use SetObjectIntegrityLevelEx]" << std::endl;
-    BOOL result = SetObjectIntegrityLevel(objectPath.c_str(), objectType, integrityLevel.c_str(), bEnable, inheritance);
+    WriteConsoleW(hConsole, L"[NOTE: Actual implementation should use SetObjectIntegrityLevelEx]\n", 68, NULL, NULL);
+    BOOL result = SetObjectIntegrityLevel(objectPath, objectType, integrityLevel, bEnable, inheritance);
 
     if (result) {
-        std::wcout << L"\nSUCCESS: Integrity level set operation completed!" << std::endl;
+        WriteConsoleW(hConsole, L"\nSUCCESS: Integrity level set operation completed!\n", 48, NULL, NULL);
 
         // 验证设置（仅对支持的对象类型）
         if (objectType == SE_REGISTRY_KEY || objectType == SE_FILE_OBJECT) {
-            std::wcout << L"\nVerifying integrity level..." << std::endl;
+            WriteConsoleW(hConsole, L"\nVerifying integrity level...\n", 29, NULL, NULL);
 
             PSECURITY_DESCRIPTOR pSD = NULL;
             PSID pOwner = NULL;
@@ -131,7 +136,7 @@ int wmain(int argc, wchar_t* argv[]) {
             PACL pSacl = NULL;
 
             DWORD dwError = GetNamedSecurityInfoW(
-                (LPWSTR)objectPath.c_str(),
+                (LPWSTR)objectPath,
                 objectType,
                 LABEL_SECURITY_INFORMATION,
                 &pOwner,
@@ -150,15 +155,11 @@ int wmain(int argc, wchar_t* argv[]) {
                         if (pVerifySid) {
                             CopySid(GetLengthSid(&pLabelAce->SidStart), pVerifySid, &pLabelAce->SidStart);
 
-                            std::wstring verifySidStr;
-                            if (ConvertSidToString(pVerifySid, verifySidStr)) {
-                                std::wcout << L"Verified integrity level: " << verifySidStr << std::endl;
-                                if (verifySidStr == integrityLevel) {
-                                    std::wcout << L"VERIFICATION: SID matches expected value!" << std::endl;
-                                }
-                                else {
-                                    std::wcout << L"WARNING: SID doesn't match expected value!" << std::endl;
-                                }
+                            LPWSTR verifySidStr = NULL;
+                            if (ConvertSidToStringSidW(pVerifySid, &verifySidStr)) {
+                                len = wsprintfW(buffer, L"Verified integrity level: %s\n", verifySidStr);
+                                WriteConsoleW(hConsole, buffer, len, NULL, NULL);
+                                LocalFree(verifySidStr);
                             }
                             LocalFree(pVerifySid);
                         }
@@ -167,16 +168,15 @@ int wmain(int argc, wchar_t* argv[]) {
                 LocalFree(pSD);
             }
             else {
-                std::wcout << L"Note: Could not verify integrity level (error code: " << dwError << L")" << std::endl;
+                len = wsprintfW(buffer, L"Note: Could not verify integrity level (error code: %lu)\n", dwError);
+                WriteConsoleW(hConsole, buffer, len, NULL, NULL);
             }
         }
     }
     else {
-        std::wcerr << L"\nFAILED: Failed to set integrity level" << std::endl;
-        return 1;
+        WriteConsoleW(hConsole, L"\nFAILED: Failed to set integrity level\n", 37, NULL, NULL);
     }
-
-    return 0;
+    LocalFree(argv);
 }
 
 // 新增函数：设置对象的完整性级别及其继承属性
@@ -184,8 +184,8 @@ BOOL SetObjectIntegrityLevel(
     LPCWSTR objectPath,
     SE_OBJECT_TYPE objectType,
     LPCWSTR integrityLevel,
-    BOOL bEnable,                     // 是否启用完整性级别
-    byte inheritance  // 继承属性
+    BOOL bEnable, // 是否启用完整性级别
+    BYTE inheritance // 继承属性
 ) {
     // 初始化所有指针为NULL
     PSID pIntegritySid = NULL;
@@ -201,43 +201,45 @@ BOOL SetObjectIntegrityLevel(
 
     // 创建完整性级别SID
     if (!ConvertStringSidToSidW(integrityLevel, &pIntegritySid)) {
-        std::wcerr << L"ConvertStringSidToSid failed for: " << integrityLevel << std::endl;
-        goto cleanup;
+        return FALSE;
     }
-
-    // 根据是否启用完整性级别来设置ACE的Mask
 
     // 创建 ACE
     dwAceSize = sizeof(SYSTEM_MANDATORY_LABEL_ACE) + GetLengthSid(pIntegritySid) - sizeof(DWORD);
     pAce = (PSYSTEM_MANDATORY_LABEL_ACE)LocalAlloc(LPTR, dwAceSize);
     if (!pAce) {
-        std::wcerr << L"LocalAlloc failed for ACE" << std::endl;
-        goto cleanup;
+        LocalFree(pIntegritySid);
+        return FALSE;
     }
 
     pAce->Header.AceType = SYSTEM_MANDATORY_LABEL_ACE_TYPE;
     // 根据继承属性设置AceFlags
     pAce->Header.AceFlags = inheritance;
     pAce->Header.AceSize = (WORD)dwAceSize;
-    pAce->Mask = aceMask;  // 使用新的aceMask
+    pAce->Mask = aceMask; // 使用新的aceMask
     CopySid(GetLengthSid(pIntegritySid), &pAce->SidStart, pIntegritySid);
 
     // 创建 SACL
     dwNewSaclSize = sizeof(ACL) + dwAceSize;
     pNewSacl = (PACL)LocalAlloc(LPTR, dwNewSaclSize);
     if (!pNewSacl) {
-        std::wcerr << L"LocalAlloc failed for new SACL" << std::endl;
-        goto cleanup;
+        LocalFree(pAce);
+        LocalFree(pIntegritySid);
+        return FALSE;
     }
 
     if (!InitializeAcl(pNewSacl, dwNewSaclSize, ACL_REVISION)) {
-        std::wcerr << L"InitializeAcl failed" << std::endl;
-        goto cleanup;
+        LocalFree(pAce);
+        LocalFree(pNewSacl);
+        LocalFree(pIntegritySid);
+        return FALSE;
     }
 
     if (!AddAce(pNewSacl, ACL_REVISION, 0, (LPVOID)pAce, dwAceSize)) {
-        std::wcerr << L"AddAce failed" << std::endl;
-        goto cleanup;
+        LocalFree(pAce);
+        LocalFree(pNewSacl);
+        LocalFree(pIntegritySid);
+        return FALSE;
     }
 
     // 使用 SetNamedSecurityInfoW 设置 SACL
@@ -251,21 +253,12 @@ BOOL SetObjectIntegrityLevel(
         pNewSacl // SACL
     );
 
-    if (dwError == ERROR_SUCCESS) {
-        bResult = TRUE;
-    }
-    else {
-        std::wcerr << L"SetNamedSecurityInfoW failed with error: " << dwError << std::endl;
-    }
+    LocalFree(pAce);
+    LocalFree(pNewSacl);
+    LocalFree(pIntegritySid);
 
-cleanup:
-    if (pAce) LocalFree(pAce);
-    if (pNewSacl) LocalFree(pNewSacl);
-    if (pIntegritySid) LocalFree(pIntegritySid);
-
-    return bResult;
+    return dwError == ERROR_SUCCESS;
 }
-
 
 // 启用指定的权限
 BOOL EnablePrivilege(LPCWSTR privilegeName) {
@@ -292,46 +285,50 @@ BOOL EnablePrivilege(LPCWSTR privilegeName) {
     return result;
 }
 
-// 将SID转换为字符串
-BOOL ConvertSidToString(PSID pSid, std::wstring& strSid) {
-    LPWSTR sidString = NULL;
-    if (ConvertSidToStringSidW(pSid, &sidString)) {
-        strSid = sidString;
-        LocalFree(sidString);
-        return TRUE;
-    }
-    return FALSE;
+// 将SID转换为字符串（自定义实现）
+BOOL ConvertSidToString(PSID pSid, LPWSTR* strSid) {
+    return ConvertSidToStringSidW(pSid, strSid);
 }
+
 // 打印使用说明
-void PrintUsage() {
-    std::wcout << L"\n=== Object Integrity Level Tool ===" << std::endl;
-    std::wcout << L"\nUsage:" << std::endl;
-    std::wcout << L" SetObjectIntegrity.exe <ObjectType> <ObjectPath> <IntegrityLevel> <enable|disable> [inheritance]" << std::endl;
-    std::wcout << L"\nObject types:" << std::endl;
-    std::wcout << L" file - File or directory (SE_FILE_OBJECT)" << std::endl;
-    std::wcout << L" registry - Registry key (SE_REGISTRY_KEY)" << std::endl;
-    std::wcout << L" service - Windows service (SE_SERVICE)" << std::endl;
-    std::wcout << L" printer - Printer (SE_PRINTER)" << std::endl;
-    std::wcout << L" kernel - Kernel object (SE_KERNEL_OBJECT)" << std::endl;
-    std::wcout << L" window - Window station/desktop (SE_WINDOW_OBJECT)" << std::endl;
-    std::wcout << L" ds - Directory service object (SE_DS_OBJECT)" << std::endl;
-    std::wcout << L"\nIntegrity levels:" << std::endl;
-    std::wcout << L" S-1-16-0 (Untrusted)" << std::endl;
-    std::wcout << L" S-1-16-4096 (Low)" << std::endl;
-    std::wcout << L" S-1-16-8192 (Medium)" << std::endl;
-    std::wcout << L" S-1-16-12288 (High)" << std::endl;
-    std::wcout << L" S-1-16-16384 (System)" << std::endl;
-    std::wcout << L"\nEnable/Disable:" << std::endl;
-    std::wcout << L" enable - Enable IntegrityLevel" << std::endl;
-    std::wcout << L" disable - Disable IntegrityLevel" << std::endl;
-    std::wcout << L"\nInheritance options (optional):" << std::endl;
-    std::wcout << L" none - no inherit" << std::endl;
-    std::wcout << L" container - container inherit" << std::endl;
-    std::wcout << L" object - object inherit" << std::endl;
-    std::wcout << L" both - container inherit and object inherit" << std::endl;
-    std::wcout << L"\nExamples:" << std::endl;
-    std::wcout << L" SetObjectIntegrity.exe file C:\\Temp\\test.txt S-1-16-4096 enable none" << std::endl;
-    std::wcout << L" SetObjectIntegrity.exe registry CURRENT_USER\\Software\\MyApp S-1-16-8192 disable container" << std::endl;
-    std::wcout << L" SetObjectIntegrity.exe service MyService S-1-16-12288 enable both" << std::endl;
-    std::wcout << L"=================================================================\n" << std::endl;
+VOID PrintUsage(HANDLE hConsole) {
+    LPCWSTR usage = L"\n=== Object Integrity Level Tool ===\n"
+        L"\nUsage:\n"
+        L" SetObjectIntegrity.exe <ObjectType> <ObjectPath> <IntegrityLevel> <enable|disable> [inheritance]\n"
+        L"\nObject types:\n"
+        L" file - File or directory (SE_FILE_OBJECT)\n"
+        L" registry - Registry key (SE_REGISTRY_KEY)\n"
+        L" service - Windows service (SE_SERVICE)\n"
+        L" printer - Printer (SE_PRINTER)\n"
+        L" kernel - Kernel object (SE_KERNEL_OBJECT)\n"
+        L" window - Window station/desktop (SE_WINDOW_OBJECT)\n"
+        L" ds - Directory service object (SE_DS_OBJECT)\n"
+        L"\nIntegrity levels:\n"
+        L" S-1-16-0 (Untrusted)\n"
+        L" S-1-16-4096 (Low)\n"
+        L" S-1-16-8192 (Medium)\n"
+        L" S-1-16-12288 (High)\n"
+        L" S-1-16-16384 (System)\n"
+        L"\nEnable/Disable:\n"
+        L" enable - Enable IntegrityLevel\n"
+        L" disable - Disable IntegrityLevel\n"
+        L"\nInheritance options (optional):\n"
+        L" none - no inherit\n"
+        L" container - container inherit\n"
+        L" object - object inherit\n"
+        L" both - container inherit and object inherit\n"
+        L"\nExamples:\n"
+        L" SetObjectIntegrity.exe file C:\\Temp\\test.txt S-1-16-4096 enable none\n"
+        L" SetObjectIntegrity.exe registry CURRENT_USER\\Software\\MyApp S-1-16-8192 disable container\n"
+        L" SetObjectIntegrity.exe service MyService S-1-16-12288 enable both\n"
+        L"=================================================================\n";
+    DWORD len = 0;
+    while (usage[len] != L'\0') len++;
+    WriteConsoleW(hConsole, usage, len, NULL, NULL);
+}
+
+// 自定义入口点
+void Startup()
+{
+    ExitProcess(Main());
 }
