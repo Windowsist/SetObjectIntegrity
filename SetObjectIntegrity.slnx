@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="SetObjectIntegrity/SetObjectIntegrity.vcxproj" Id="48f7b8cc-67f4-41f1-a194-40b802b7750d" />
+</Solution>
