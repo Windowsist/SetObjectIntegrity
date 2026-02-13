@@ -15,8 +15,16 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="SetObjectIntegrity.cpp">
+    <ClCompile Include="Main.c">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="SetObjectIntegrity.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h">
+      <Filter>源文件</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
